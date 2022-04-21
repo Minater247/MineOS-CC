@@ -186,8 +186,6 @@ local internetProxy, GPUProxy =
 	getComponentProxy("internet"),
 	getComponentProxy("gpu")
 
--- Binding GPU to screen in case it's not done yet
-GPUProxy.bind(getComponentAddress("screen"))
 local screenWidth, screenHeight = GPUProxy.getResolution()
 local repositoryURL = "https://raw.githubusercontent.com/Minater247/MineOS-CC/master/"
 local installerURL = "Installer/"

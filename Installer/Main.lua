@@ -84,6 +84,8 @@ fsproxyinternal.lastModified = function(path)
 	return 0
 end
 
+local internetproxy = http
+
 _G.component = {}
 component.list = function(name)
 	local sidesWithComponent = {}
@@ -105,6 +107,8 @@ component.list = function(name)
 				table.insert(sidesWithComponent, sides[i])
 			end
 		end
+	elseif name == "internet" then
+		table.insert(sidesWithComponent, "http")
 	end
 	return tableToIter(sidesWithComponent)
 end
@@ -113,6 +117,8 @@ component.proxy = function(side)
 		return gputerm
 	elseif side == "internaldrive" then
 		return fsproxyinternal
+	elseif side == "http" then
+		return internetproxy
 	end
 end
 

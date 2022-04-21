@@ -1,3 +1,171 @@
+------------------------------------- ComputerCraft compatibility -------------------------------------
+
+local bootTime = math.floor( (os.epoch("utc") / 1000) +0.5)
+
+_G.CCError = function(reason, level)
+	term.setCursorPos(1, 1)
+	term.setTextColor(colors.red)
+	term.setBackgroundColor(colors.black)
+	term.write(reason)
+	local currY = 2
+	local traceback = debug.traceback()
+	--write it out, moving to next line at new lines
+	for line in string.gmatch(traceback, "[^\n]+") do
+		currY = currY + 1
+		term.setCursorPos(1, currY)
+		term.write(line)
+	end
+	os.pullEvent("key")
+	os.reboot()
+end
+_G.ccfs = fs
+
+local sides = {
+	"top",
+	"bottom",
+	"left",
+	"right",
+	"front",
+	"back"
+}
+
+local function tableToIter(tab)
+	local i = 0
+	return function()
+		i = i + 1
+		return tab[i]
+	end
+end
+
+local colorTransformations = {
+	[0xA5A5A5] = colors.lightGray,
+	[0x1d1d1d] = colors.black,
+	[0x000000] = colors.black,
+	[0xe1e1e1] = colors.white,
+	[0x010101] = colors.black,
+	[0xfefefe]= colors.white,
+	[0xffdb40] = colors.yellow,
+	[0x3366cc] = colors.lightBlue,
+	[0xffffff] = colors.white
+}
+
+_G.gputerm = term
+gputerm.getResolution = term.getSize
+gputerm.setForeground = function(color)
+	term.setTextColor(colorTransformations[color] or color)
+end
+gputerm.setBackground = function(color)
+	term.setBackgroundColor(colorTransformations[color] or color)
+end
+gputerm.fill = function(x, y, w, h, c)
+	term.setCursorPos(x, y)
+	for i = 1, h do
+		term.write(string.rep(c, w))
+		term.setCursorPos(x, y + i)
+	end
+end
+gputerm.set = function(x, y, text)
+	term.setCursorPos(x, y)
+	term.write(text)
+end
+
+_G.unicode = string
+
+local fsproxy = {}
+fsproxy.ident = "fsproxy"
+
+local fsproxyinternal = fs
+fsproxyinternal.read = io.read
+fsproxyinternal.close = io.close
+fsproxyinternal.remove = fs.delete
+fsproxyinternal.ident = "fsproxyinternal"
+fsproxyinternal.lastModified = function(path)
+	--this doesn't work, so return 0
+	return 0
+end
+
+_G.component = {}
+component.list = function(name)
+	local sidesWithComponent = {}
+	if name == "gpu" then
+		--add internal monitor
+		sidesWithComponent[1] = "internalmonitor"
+		--look for monitors
+		for i = 1, #sides do
+			if peripheral.isPresent(sides[i]) and peripheral.getType(sides[i]) == "monitor" then
+				table.insert(sidesWithComponent, sides[i])
+			end
+		end
+	elseif name == "filesystem" then
+		--add internal filesystem
+		sidesWithComponent[1] = "internaldrive"
+		--look for disks
+		for i = 1, #sides do
+			if peripheral.isPresent(sides[i]) and peripheral.getType(sides[i]) == "drive" then
+				table.insert(sidesWithComponent, sides[i])
+			end
+		end
+	end
+	return tableToIter(sidesWithComponent)
+end
+component.proxy = function(side)
+	if side == "internalmonitor" then
+		return gputerm
+	elseif side == "internaldrive" then
+		return fsproxyinternal
+	end
+end
+
+_G.computer = {}
+computer.pushSignal = os.queueEvent
+computer.uptime = function()
+	return math.floor( (os.epoch("utc") / 1000) +0.5) - bootTime
+end
+computer.tmpAddress = function() return "internaldrive" end
+computer.pullSignal = function(var1, ...)
+	local signalnames = {...}
+	if type(var1) == "number" then
+		if var1 <= 0 then
+			var1 = 0.1
+		end
+		os.startTimer(var1, "internalTimer"..var1)
+		local donePulling = false
+		local signal
+		while not donePulling do
+			signal = {os.pullEventRaw(...)}
+			if signal[1] == "timer" and signal[2] == "internalTimer"..var1 then
+				donePulling = true
+			else
+				return unpack(signal)
+			end
+		end
+	elseif type(var1) == "string" then
+		signalnames[#signalnames+1] = var1
+		return os.pullEventRaw(unpack(signalnames))
+	end
+end
+
+function checkArg(n, have, want, ...)
+	--check if the argument matches the expected type or any type in ...
+	local right = false
+	local types = {...}
+	for i = 1, #types do
+		if type(have) == types[i] then
+			right = true
+			break
+		end
+	end
+	if type(have) == want then
+		right = true
+	end
+	if not right then
+		error(string.format("bad argument #%d (%s expected, got %s)", n, want, type(have)), 2)
+	end
+end
+
+_G.checkArg = checkArg
+
+------------------------------------------- MineOS Installer ------------------------------------------
 
 -- Checking for required components
 local function getComponentAddress(name)
@@ -16,8 +184,7 @@ local EEPROMProxy, internetProxy, GPUProxy =
 -- Binding GPU to screen in case it's not done yet
 GPUProxy.bind(getComponentAddress("screen"))
 local screenWidth, screenHeight = GPUProxy.getResolution()
-
-local repositoryURL = "https://raw.githubusercontent.com/IgorTimofeev/MineOS/master/"
+local repositoryURL = "https://raw.githubusercontent.com/Minater247/MineOS-CC/master/"
 local installerURL = "Installer/"
 local EFIURL = "EFI/Minified.lua"
 

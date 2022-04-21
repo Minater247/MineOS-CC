@@ -18,7 +18,6 @@ _G.CCError = function(reason, level)
 	os.pullEvent("key")
 	os.reboot()
 end
-_G.ccfs = fs
 
 local sides = {
 	"top",
@@ -46,7 +45,10 @@ local colorTransformations = {
 	[0xfefefe]= colors.white,
 	[0xffdb40] = colors.yellow,
 	[0x3366cc] = colors.lightBlue,
-	[0xffffff] = colors.white
+	[0xffffff] = colors.white,
+	[0x2d2d2d] = colors.black,
+	[0x878787] = colors.gray,
+	[0xc3c3c3] = colors.lightGray
 }
 
 _G.gputerm = term
@@ -83,6 +85,32 @@ fsproxyinternal.lastModified = function(path)
 	--this doesn't work, so return 0
 	return 0
 end
+fsproxyinternal.spaceTotal = function()
+	return math.huge
+end
+fsproxyinternal.makeDirectory = fs.makeDir
+fsproxyinternal.open = fs.open
+fsproxyinternal.write = function(stream, chunk)
+	returnval = stream.write(chunk)
+	return returnval
+end
+fsproxyinternal.close = function(stream)
+	return stream.close()
+end
+fsproxyinternal.read = function(stream, stopPoint)
+	local streamData = stream.readAll()
+	--if stopPoint is math.huge, return the whole thing
+	if stopPoint == math.huge then
+		return streamData
+	end
+	--otherwise, return the first stopPoint characters
+	if stopPoint then
+		return string.sub(streamData, 1, stopPoint)
+	else
+		return streamData
+	end
+end
+
 
 local internetproxy = http
 
@@ -250,14 +278,14 @@ local function filesystemHideExtension(path)
 end
 
 local function rawRequest(url, chunkHandler)
-	local internetHandle, reason = internetProxy.request(repositoryURL .. url:gsub("([^%w%-%_%.%~])", function(char)
+	local internetHandle = internetProxy.get(repositoryURL .. url:gsub("([^%w%-%_%.%~])", function(char)
 		return string.format("%%%02X", string.byte(char))
 	end))
 
 	if internetHandle then
 		local chunk, reason
 		while true do
-			chunk, reason = internetHandle.read(math.huge)	
+			chunk, reason = internetHandle.readAll()
 			
 			if chunk then
 				chunkHandler(chunk)
@@ -290,7 +318,7 @@ local function download(url, path)
 	selectedFilesystemProxy.makeDirectory(filesystemPath(path))
 
 	local fileHandle, reason = selectedFilesystemProxy.open(path, "wb")
-	if fileHandle then	
+	if fileHandle then
 		rawRequest(url, function(chunk)
 			selectedFilesystemProxy.write(fileHandle, chunk)
 		end)
@@ -329,15 +357,18 @@ if not temporaryFilesystemProxy then
 	return
 end
 
--- First, we need a big ass file list with localizations, applications, wallpapers
+-- First, we need a big file list with localizations, applications, wallpapers
 progress(0)
 local files = deserialize(request(installerURL .. "Files.cfg"))
 
 -- After that we could download required libraries for installer from it
 for i = 1, #files.installerFiles do
 	progress(i / #files.installerFiles)
-	download(files.installerFiles[i], installerPath .. files.installerFiles[i])
+	if not fs.exists(installerPath .. files.installerFiles[i]) then
+		download(files.installerFiles[i], installerPath .. files.installerFiles[i])
+	end
 end
+
 
 -- Initializing simple package system for loading system libraries
 package = {loading = {}, loaded = {}}
@@ -375,6 +406,8 @@ function require(module)
 		return package.loaded[module]
 	end
 end
+
+_G.require = require
 
 -- Initializing system libraries
 local filesystem = require("Filesystem")

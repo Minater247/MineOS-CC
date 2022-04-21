@@ -281,7 +281,10 @@ function image.load(path)
 			local encodingMethod = file:readBytes(1)
 			if encodingMethodsLoad[encodingMethod] then
 				local picture = {}
-				local result, reason = xpcall(encodingMethodsLoad[encodingMethod], debug.traceback, file, picture)
+				local funcCall = function()
+					encodingMethodsLoad[encodingMethod](file, picture)
+				end
+				local result, reason = xpcall(funcCall, debug.traceback)
 				
 				file:close()
 

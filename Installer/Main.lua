@@ -176,8 +176,7 @@ local function getComponentProxy(name)
 	return component.proxy(getComponentAddress(name))
 end
 
-local EEPROMProxy, internetProxy, GPUProxy = 
-	getComponentProxy("eeprom"),
+local internetProxy, GPUProxy = 
 	getComponentProxy("internet"),
 	getComponentProxy("gpu")
 
